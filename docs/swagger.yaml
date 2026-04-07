@@ -1,0 +1,165 @@
+basePath: /
+definitions:
+  httpapi.CreateProjectRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  httpapi.CreateProjectResponse:
+    properties:
+      api_key:
+        type: string
+      project_id:
+        type: string
+    type: object
+  httpapi.JSONError:
+    properties:
+      error:
+        example: internal server error
+        type: string
+    type: object
+  models.Project:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      slug:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  models.Workflow:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      projectID:
+        type: string
+      slug:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: 'Multi-tenant workflow engine (projects, workflows). Regenerate docs
+    with: go generate ./cmd/api/...'
+  title: Workflow Engine API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: Returns plain text ok when the process is up.
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: ok
+          schema:
+            type: string
+      summary: Health check
+      tags:
+      - system
+  /projects:
+    get:
+      description: Returns the project tied to the API key.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Project'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+      security:
+      - ApiKeyAuth: []
+      summary: Get current project
+      tags:
+      - projects
+    post:
+      consumes:
+      - application/json
+      description: Creates a project and returns a new API key once.
+      parameters:
+      - description: Project name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpapi.CreateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/httpapi.CreateProjectResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+      summary: Create project
+      tags:
+      - projects
+  /workflows:
+    get:
+      description: Returns workflow definitions for the project from the API key.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Workflow'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+      security:
+      - ApiKeyAuth: []
+      summary: List workflows
+      tags:
+      - workflows
+schemes:
+- http
+securityDefinitions:
+  ApiKeyAuth:
+    description: 'Use: Bearer wf_yourPrefix.yourSecret'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
