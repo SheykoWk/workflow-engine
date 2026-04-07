@@ -1,14 +1,151 @@
-# workflow-engine
+# Distributed Workflow Engine
 
-Go API service (hexagonal layout) with PostgreSQL. This document covers how to set up your environment, apply database migrations, and run the server.
+## 🧠 Overview
 
-## Prerequisites
+This project is a **distributed workflow orchestration engine** designed to execute long-running, fault-tolerant processes across services.
 
-- **Go** 1.26 or newer (see `go.mod`).
-- **PostgreSQL** running locally or reachable over the network.
-- **`psql`** and **`bash`** on your `PATH` (used by the migration script).
+It is inspired by systems like Temporal and AWS Step Functions, with a focus on:
 
-## 1. Clone and dependencies
+* Reliability under failure
+* Idempotent execution
+* Distributed coordination
+* Observability
+
+---
+
+## 🎯 Problem Statement
+
+In distributed systems, coordinating multi-step processes is complex due to:
+
+* Partial failures (a step fails mid-execution)
+* Retry handling
+* State consistency across services
+* Lack of visibility into execution
+
+This project aims to solve:
+
+* Workflow orchestration across distributed workers
+* Reliable retries and failure recovery
+* State persistence and replayability
+* Execution traceability
+
+---
+
+## 🏗️ High-Level Architecture
+
+Core components:
+
+* **API Layer** → receives workflow execution requests
+* **Workflow Engine** → orchestrates execution and state transitions
+* **Workers** → execute individual steps
+* **State Store (PostgreSQL)** → persists workflow state
+* **Event Bus (future)** → decouples execution and enables scaling
+
+---
+
+## ⚙️ Current Status
+
+🚧 Early-stage implementation
+
+Currently implemented:
+
+* Basic API service in Go
+* Hexagonal architecture structure
+* PostgreSQL integration
+* Migration system
+
+Planned:
+
+* Workflow execution engine
+* Retry + backoff strategies
+* Distributed workers
+* Event-driven execution
+
+---
+
+## 🧩 Project Goals
+
+* Build a **production-grade workflow engine**
+* Support **idempotent and resilient execution**
+* Enable **horizontal scaling via workers**
+* Provide **observability and debugging tools**
+* Simulate real-world distributed failures
+
+---
+
+## 🛠️ Tech Stack
+
+**Current:**
+
+* Go (core service)
+* PostgreSQL (state persistence)
+
+**Planned:**
+
+* Kafka / SQS (event-driven execution)
+* Redis (caching, locks)
+* gRPC (worker communication)
+* OpenTelemetry (tracing)
+* Prometheus + Grafana (metrics)
+
+---
+
+## 🔥 Technical Challenges
+
+This project intentionally tackles hard problems:
+
+* Exactly-once vs at-least-once execution
+* Idempotency guarantees
+* Distributed state consistency
+* Failure recovery (worker crashes, retries)
+* Long-running workflows
+* Event ordering and duplication
+
+---
+
+## 📊 Metrics (to be implemented)
+
+* Workflows executed/sec
+* Execution latency (p95)
+* Retry rate
+* Failure recovery success rate
+* System throughput
+
+---
+
+## 🧪 Failure Scenarios (planned)
+
+* Worker crashes during execution
+* Duplicate step execution
+* Database downtime
+* Network partitions
+
+---
+
+## 📂 Project Structure
+
+| Path                                    | Purpose                                |
+| --------------------------------------- | -------------------------------------- |
+| `cmd/api`                               | Application entrypoint                 |
+| `internal/domain`                       | Core domain (no external dependencies) |
+| `internal/app`                          | Use cases and orchestration            |
+| `internal/interfaces/http`              | HTTP adapter                           |
+| `internal/infrastructure`               | DB and external integrations           |
+| `internal/infrastructure/db/migrations` | SQL migrations                         |
+
+---
+
+## ⚙️ Setup & Local Development
+
+### Prerequisites
+
+* Go 1.26+
+* PostgreSQL
+* `psql` and `bash`
+
+---
+
+### 1. Clone & install dependencies
 
 ```bash
 git clone <repository-url>
@@ -16,77 +153,64 @@ cd workflow-engine
 go mod download
 ```
 
-## 2. Create the database
+---
 
-Create an empty database for the app (name is up to you; examples below use `workflow-engine`).
-
-Using `psql` as a superuser:
+### 2. Create database
 
 ```bash
 psql -U postgres -h localhost -c 'CREATE DATABASE "workflow-engine";'
 ```
 
-If your database name uses only letters, numbers, and underscores, you can omit the double quotes.
+---
 
-## 3. Configure `DATABASE_URL`
-
-The migration script reads **`DATABASE_URL`** (PostgreSQL connection URI).
-
-Example:
+### 3. Configure environment
 
 ```bash
 export DATABASE_URL='postgresql://postgres:yourpassword@localhost:5432/workflow-engine'
 ```
 
-Adjust user, password, host, port, and database name to match your setup.
+---
 
-## 4. Run migrations
-
-Migrations live under `internal/infrastructure/db/migrations/` (paired `.up.sql` / `.down.sql` files). They are written to be **re-runnable** in simple setups (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`).
-
-From the repository root:
+### 4. Run migrations
 
 ```bash
-chmod +x internal/infrastructure/db/migrate-up.sh   # first time only, if needed
+chmod +x internal/infrastructure/db/migrate-up.sh
 ./internal/infrastructure/db/migrate-up.sh
 ```
 
-The script applies every `*.up.sql` file in sorted order. It stops on the first error (`ON_ERROR_STOP` in `psql`).
+---
 
-To tear down schema in reverse dependency order, run the `.down.sql` files manually (newest first), or extend the repo with a `migrate-down` script if you need it regularly.
-
-## 5. Run the API
+### 5. Run API
 
 ```bash
 go run ./cmd/api
 ```
 
-By default the server listens on **`:8080`**. Override with:
+Default:
 
-```bash
-export HTTP_ADDR=:3000
-go run ./cmd/api
+```
+http://localhost:8080
 ```
 
 Health check:
 
 ```bash
-curl -s http://127.0.0.1:8080/health
+curl http://127.0.0.1:8080/health
 ```
 
-## Environment variables
+---
 
-| Variable        | Required for migrations | Description                                      |
-|----------------|-------------------------|--------------------------------------------------|
-| `DATABASE_URL` | Yes                     | PostgreSQL connection string for `migrate-up.sh` |
-| `HTTP_ADDR`    | No                      | Listen address for the API (default `:8080`)      |
+## 🌱 Future Work
 
-## Project layout (short)
+* Workflow definition DSL
+* Distributed worker system
+* Retry and compensation logic (Saga pattern)
+* Event-driven execution
+* Observability (tracing + metrics)
+* Load testing and benchmarking
 
-| Path | Purpose |
-|------|---------|
-| `cmd/api` | Application entrypoint |
-| `internal/domain` | Core domain (no framework imports) |
-| `internal/app` | Use cases and orchestration |
-| `internal/interfaces/http` | HTTP adapter (`net/http`) |
-| `internal/infrastructure` | DB, external systems; SQL under `internal/infrastructure/db/migrations/` |
+---
+
+## 💬 Pitch
+
+Built a distributed workflow orchestration engine to handle long-running processes with retries, fault tolerance, and state persistence, focusing on reliability and observability in distributed systems.
