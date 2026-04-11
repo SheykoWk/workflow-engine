@@ -47,17 +47,21 @@ func CompareAPIKey(keyHash, rawKey string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(keyHash), []byte(rawKey)) == nil
 }
 
-// ParseBearerAPIKey extracts the raw token from "Bearer <token>". It does not validate wf_.
+// ParseBearerAPIKey extracts the raw token from "Bearer <token>" or a bare "wf_..." key.
+// Swagger UI sends apiKey headers without the Bearer prefix, so both formats are accepted.
 func ParseBearerAPIKey(authHeader string) (token string, ok bool) {
-	const p = "Bearer "
-	if len(authHeader) < len(p) || !strings.EqualFold(authHeader[:len(p)], p) {
-		return "", false
+	const bearer = "Bearer "
+	if strings.EqualFold(authHeader[:min(len(authHeader), len(bearer))], bearer) {
+		t := strings.TrimSpace(authHeader[len(bearer):])
+		if t == "" {
+			return "", false
+		}
+		return t, true
 	}
-	t := strings.TrimSpace(authHeader[len(p):])
-	if t == "" {
-		return "", false
+	if strings.HasPrefix(authHeader, apiKeyPrefix) {
+		return authHeader, true
 	}
-	return t, true
+	return "", false
 }
 
 // SplitWFAPIKey parses wf_<prefix>.<secret> and returns prefix (for DB lookup) and full raw key for bcrypt.
