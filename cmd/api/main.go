@@ -2,7 +2,11 @@
 //
 //	@title			Workflow Engine API
 //	@version		1.0
-//	@description	Multi-tenant workflow engine (projects, workflows). Regenerate docs with: go generate ./cmd/api/...
+//	@description	Multi-tenant workflow engine (projects and workflow definitions).
+//	@description	Runs: POST /workflows/{id}/runs creates a pending run and step runs. Execution is done by the separate cmd/worker binary, not this HTTP server.
+//	@description	Step types (field type): delay (config seconds), http_request (method, url, optional headers, body). Optional retry.max_attempts and retry.backoff_seconds (exponential backoff with jitter; 4xx except 429 are not retried).
+//	@description	Chaining: in config strings use {{steps.N.output.path}} with workflow step_index N and a dotted path into that step JSON output.
+//	@description	Regenerate OpenAPI: go generate ./cmd/api/...
 //
 //	@host		localhost:8080
 //	@BasePath	/
@@ -25,6 +29,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/SheykoWk/workflow-engine/internal/app"
+	"github.com/SheykoWk/workflow-engine/internal/app/executor"
 	"github.com/SheykoWk/workflow-engine/internal/infrastructure/db"
 	httpapi "github.com/SheykoWk/workflow-engine/internal/interfaces/http"
 	"github.com/joho/godotenv"
@@ -53,10 +59,17 @@ func main() {
 	defer func() { _ = sqlDB.Close() }()
 
 	workflowRepo := db.NewWorkflowRepository(sqlDB)
+	workflowSvc := app.NewWorkflowService(workflowRepo)
 	projectRepo := db.NewProjectRepository(sqlDB)
 	apiKeyRepo := db.NewAPIKeyRepository(sqlDB)
-	workflows := httpapi.NewWorkflowHandler(workflowRepo)
+	stepRunRepo := db.NewStepRunRepository(sqlDB)
+	workflows := httpapi.NewWorkflowHandler(workflowSvc)
 	projects := httpapi.NewProjectHandler(projectRepo)
+
+	executorCtx, stopExecutor := context.WithCancel(context.Background())
+	defer stopExecutor()
+	executor.Start(executorCtx, stepRunRepo)
+	log.Printf("executor: started")
 
 	addr := ":8080"
 	if v := os.Getenv("HTTP_ADDR"); v != "" {
