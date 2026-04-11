@@ -14,6 +14,8 @@ import (
 func NewRouter(apiKeys *db.APIKeyRepository, workflows *WorkflowHandler, projects *ProjectHandler) http.Handler {
 	protected := http.NewServeMux()
 	protected.HandleFunc("GET /workflows", workflows.GetAllWorkflows)
+	protected.HandleFunc("POST /workflows", workflows.CreateWorkflow)
+	protected.HandleFunc("POST /workflows/{id}/runs", workflows.CreateWorkflowRun)
 	protected.HandleFunc("GET /projects", projects.GetCurrentProject)
 
 	mux := http.NewServeMux()
@@ -21,7 +23,23 @@ func NewRouter(apiKeys *db.APIKeyRepository, workflows *WorkflowHandler, project
 	mux.HandleFunc("POST /projects", projects.CreateProject)
 	mux.Handle("/swagger/", httpSwagger.WrapHandler)
 	mux.Handle("/", auth.APIKeyMiddleware(apiKeys)(protected))
-	return mux
+	return corsMiddleware(mux)
+}
+
+// corsMiddleware adds CORS headers and handles OPTIONS preflight requests.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // health liveness probe.
