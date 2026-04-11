@@ -4,16 +4,16 @@ package docs
 import "github.com/swaggo/swag"
 
 const docTemplate = `{
-    "schemes": {{ marshal .Schemes }},
+    "schemes": [[ marshal .Schemes ]],
     "swagger": "2.0",
     "info": {
-        "description": "{{escape .Description}}",
-        "title": "{{.Title}}",
+        "description": "[[escape .Description]]",
+        "title": "[[.Title]]",
         "contact": {},
-        "version": "{{.Version}}"
+        "version": "[[.Version]]"
     },
-    "host": "{{.Host}}",
-    "basePath": "{{.BasePath}}",
+    "host": "[[.Host]]",
+    "basePath": "[[.BasePath]]",
     "paths": {
         "/health": {
             "get": {
@@ -166,6 +166,119 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Creates a workflow with ordered steps (` + "`" + `steps[0]` + "`" + `, ` + "`" + `steps[1]` + "`" + `, …) for the authenticated project. Each step has ` + "`" + `type` + "`" + ` and ` + "`" + `config` + "`" + ` JSON; see ` + "`" + `CreateWorkflowStepRequest` + "`" + `. Steps run in order in the worker; later steps can reference earlier outputs via ` + "`" + `{{steps.N.output...}}` + "`" + ` in config strings.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Create workflow",
+                "parameters": [
+                    {
+                        "description": "Workflow definition",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.CreateWorkflowRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.CreateWorkflowResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.JSONError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.JSONError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.JSONError"
+                        }
+                    }
+                }
+            }
+        },
+        "/workflows/{id}/runs": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Creates a ` + "`" + `workflow_run` + "`" + ` in status pending and one ` + "`" + `step_run` + "`" + ` per definition step (pending, attempt 1). The worker process picks up and executes steps; this endpoint only enqueues work.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "summary": "Start workflow run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.CreateWorkflowRunResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.JSONError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.JSONError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.JSONError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.JSONError"
+                        }
+                    }
+                }
             }
         }
     },
@@ -186,6 +299,69 @@ const docTemplate = `{
                 },
                 "project_id": {
                     "type": "string"
+                }
+            }
+        },
+        "httpapi.CreateWorkflowRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/httpapi.CreateWorkflowStepRequest"
+                    }
+                }
+            }
+        },
+        "httpapi.CreateWorkflowResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "steps_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "httpapi.CreateWorkflowRunResponse": {
+            "type": "object",
+            "properties": {
+                "run_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "steps": {
+                    "type": "integer"
+                }
+            }
+        },
+        "httpapi.CreateWorkflowStepRequest": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "description": "Config is step-specific JSON. delay: {\"seconds\":1}. http_request: {\"method\":\"GET\",\"url\":\"https://example.com\",\"headers\":{},\"body\":{}}. Optional retry: {\"max_attempts\":3,\"backoff_seconds\":5}. Strings may include {{steps.0.output.body.id}}.",
+                    "type": "object"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Fetch user"
+                },
+                "type": {
+                    "description": "Type is the executor step kind: delay, http_request.",
+                    "type": "string",
+                    "enum": [
+                        "delay http_request"
+                    ],
+                    "example": "http_request"
                 }
             }
         },
@@ -262,11 +438,11 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{"http"},
 	Title:            "Workflow Engine API",
-	Description:      "Multi-tenant workflow engine (projects, workflows). Regenerate docs with: go generate ./cmd/api/...",
+	Description:      "Multi-tenant workflow engine (projects and workflow definitions).\nRuns: POST /workflows/{id}/runs creates a pending run and step runs. Execution is done by the separate cmd/worker binary, not this HTTP server.\nStep types (field type): delay (config seconds), http_request (method, url, optional headers, body). Optional retry.max_attempts and retry.backoff_seconds (exponential backoff with jitter; 4xx except 429 are not retried).\nChaining: in config strings use {{steps.N.output.path}} with workflow step_index N and a dotted path into that step JSON output.\nRegenerate OpenAPI: go generate ./cmd/api/...",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
-	LeftDelim:        "{{",
-	RightDelim:       "}}",
+	LeftDelim:        "[[",
+	RightDelim:       "]]",
 }
 
 func init() {

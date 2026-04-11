@@ -12,6 +12,50 @@ definitions:
       project_id:
         type: string
     type: object
+  httpapi.CreateWorkflowRequest:
+    properties:
+      name:
+        type: string
+      steps:
+        items:
+          $ref: '#/definitions/httpapi.CreateWorkflowStepRequest'
+        type: array
+    type: object
+  httpapi.CreateWorkflowResponse:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      steps_count:
+        type: integer
+    type: object
+  httpapi.CreateWorkflowRunResponse:
+    properties:
+      run_id:
+        type: string
+      status:
+        type: string
+      steps:
+        type: integer
+    type: object
+  httpapi.CreateWorkflowStepRequest:
+    properties:
+      config:
+        description: 'Config is step-specific JSON. delay: {"seconds":1}. http_request:
+          {"method":"GET","url":"https://example.com","headers":{},"body":{}}. Optional
+          retry: {"max_attempts":3,"backoff_seconds":5}. Strings may include {{steps.0.output.body.id}}.'
+        type: object
+      name:
+        example: Fetch user
+        type: string
+      type:
+        description: 'Type is the executor step kind: delay, http_request.'
+        enum:
+        - delay http_request
+        example: http_request
+        type: string
+    type: object
   httpapi.JSONError:
     properties:
       error:
@@ -51,8 +95,12 @@ definitions:
 host: localhost:8080
 info:
   contact: {}
-  description: 'Multi-tenant workflow engine (projects, workflows). Regenerate docs
-    with: go generate ./cmd/api/...'
+  description: |-
+    Multi-tenant workflow engine (projects and workflow definitions).
+    Runs: POST /workflows/{id}/runs creates a pending run and step runs. Execution is done by the separate cmd/worker binary, not this HTTP server.
+    Step types (field type): delay (config seconds), http_request (method, url, optional headers, body). Optional retry.max_attempts and retry.backoff_seconds (exponential backoff with jitter; 4xx except 429 are not retried).
+    Chaining: in config strings use {{steps.N.output.path}} with workflow step_index N and a dotted path into that step JSON output.
+    Regenerate OpenAPI: go generate ./cmd/api/...
   title: Workflow Engine API
   version: "1.0"
 paths:
@@ -152,6 +200,83 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: List workflows
+      tags:
+      - workflows
+    post:
+      consumes:
+      - application/json
+      description: Creates a workflow with ordered steps (`steps[0]`, `steps[1]`,
+        …) for the authenticated project. Each step has `type` and `config` JSON;
+        see `CreateWorkflowStepRequest`. Steps run in order in the worker; later steps
+        can reference earlier outputs via `{{steps.N.output...}}` in config strings.
+      parameters:
+      - description: Workflow definition
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/httpapi.CreateWorkflowRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/httpapi.CreateWorkflowResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+      security:
+      - ApiKeyAuth: []
+      summary: Create workflow
+      tags:
+      - workflows
+  /workflows/{id}/runs:
+    post:
+      description: Creates a `workflow_run` in status pending and one `step_run` per
+        definition step (pending, attempt 1). The worker process picks up and executes
+        steps; this endpoint only enqueues work.
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/httpapi.CreateWorkflowRunResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.JSONError'
+      security:
+      - ApiKeyAuth: []
+      summary: Start workflow run
       tags:
       - workflows
 schemes:
