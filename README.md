@@ -1,4 +1,3 @@
-````markdown
 # Distributed Workflow Orchestration Engine
 
 A self-hosted distributed workflow orchestration engine built in Go for executing long-running, fault-tolerant multi-step processes with durable state persistence, retry semantics, exponential backoff, and inter-step output chaining.
